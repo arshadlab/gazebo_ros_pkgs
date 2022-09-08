@@ -96,6 +96,25 @@ void GazeboRosVacuumGripper::Load(gazebo::physics::ModelPtr _model, sdf::Element
 {
   impl_->world_ = _model->GetWorld();
 
+  // Free up global argument from any existing values.  This to support multi robot scenario
+  // gazebo_ros::Node::Get(_sdf) call initializes node_options with use_global_arguments as true.
+  // This will override model provided namespace with namespace present in global arguments.
+  // Override behavior is used by gazebo_ros2_control for controllers namespace settings. This likely
+  // to be a bug and better way is need to handle.
+
+  auto rcl_context = rclcpp::contexts::get_global_default_context()->get_rcl_context();
+  if (rcl_context) {
+      rcl_arguments_t rcl_args = rcl_get_zero_initialized_arguments();
+
+      // Initialize arguments with empty contents
+      rcl_parse_arguments(0,NULL, rcl_get_default_allocator(), &rcl_args);
+
+      // Free up space from previous call
+      rcl_arguments_fini(&rcl_context->global_arguments);
+
+      rcl_context->global_arguments = rcl_args;
+  }
+
   // Initialize ROS node
   impl_->ros_node_ = gazebo_ros::Node::Get(_sdf);
 
