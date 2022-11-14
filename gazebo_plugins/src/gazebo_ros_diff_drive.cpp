@@ -433,8 +433,8 @@ void GazeboRosDiffDrive::Reset()
 
 void GazeboRosDiffDrivePrivate::OnUpdate(const gazebo::common::UpdateInfo & _info)
 {
-#ifdef IGN_PROFILER_ENABLE
-  IGN_PROFILE("GazeboRosDiffDrivePrivate::OnUpdate");
+#if IGN_PROFILER_ENABLE
+   IGN_PROFILE("GazeboRosDiffDrivePrivate::OnUpdate");
 #endif
   // Update encoder even if we're going to skip this update
   if (odom_source_ == ENCODER) {
@@ -447,41 +447,41 @@ void GazeboRosDiffDrivePrivate::OnUpdate(const gazebo::common::UpdateInfo & _inf
     return;
   }
 
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE_BEGIN("UpdateOdometryWorld");
 #endif
   // Update odom message if using ground truth
   if (odom_source_ == WORLD) {
     UpdateOdometryWorld();
   }
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE_END();
   IGN_PROFILE_BEGIN("PublishOdometryMsg");
 #endif
   if (publish_odom_) {
     PublishOdometryMsg(_info.simTime);
   }
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE_END();
   IGN_PROFILE_BEGIN("PublishWheelsTf");
 #endif
   if (publish_wheel_tf_) {
     PublishWheelsTf(_info.simTime);
   }
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE_END();
   IGN_PROFILE_BEGIN("PublishOdometryTf");
 #endif
   if (publish_odom_tf_) {
     PublishOdometryTf(_info.simTime);
   }
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE_END();
   IGN_PROFILE_BEGIN("UpdateWheelVelocities");
 #endif
   // Update robot in case new velocities have been requested
   UpdateWheelVelocities();
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE_END();
 #endif
   // Current speed

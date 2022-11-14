@@ -25,7 +25,9 @@
 #include <gazebo/physics/World.hh>
 #include <gazebo_plugins/gazebo_ros_vacuum_gripper.hpp>
 #include <gazebo_ros/node.hpp>
+#include <gazebo_ros/utils.hpp>
 #ifdef IGN_PROFILER_ENABLE
+
 #include <ignition/common/Profiler.hh>
 #endif
 #include <std_msgs/msg/bool.hpp>
@@ -42,8 +44,10 @@ namespace gazebo_plugins
 class GazeboRosVacuumGripperPrivate
 {
 public:
+  GazeboRosVacuumGripperPrivate();
+
   /// Callback to be called at every simulation iteration.
-  void OnUpdate();
+  void OnUpdate(const gazebo::common::UpdateInfo & _info);
 
   /// \brief Function to switch the gripper on/off.
   /// \param[in] req Request
@@ -67,8 +71,8 @@ public:
   /// Pointer to world.
   gazebo::physics::WorldPtr world_;
 
-  /// Pointer to link.
-  gazebo::physics::LinkPtr link_;
+  /// Pointer array to links.
+  std::vector<gazebo::physics::LinkPtr> links_;
 
   /// Protect variables accessed on callbacks.
   std::mutex lock_;
@@ -81,7 +85,20 @@ public:
 
   /// Max distance to apply force.
   double max_distance_;
+
+  /// Throttler for clock publisher.
+  gazebo_ros::Throttler throttler_;
+
+  /// Default frequency for clock publisher.
+  static constexpr double DEFAULT_PUBLISH_FREQUENCY = 80;
 };
+
+
+GazeboRosVacuumGripperPrivate::GazeboRosVacuumGripperPrivate()
+: throttler_(DEFAULT_PUBLISH_FREQUENCY)
+{
+}
+
 
 GazeboRosVacuumGripper::GazeboRosVacuumGripper()
 : impl_(std::make_unique<GazeboRosVacuumGripperPrivate>())
@@ -102,19 +119,6 @@ void GazeboRosVacuumGripper::Load(gazebo::physics::ModelPtr _model, sdf::Element
   // Override behavior is used by gazebo_ros2_control for controllers namespace settings. This likely
   // to be a bug and better way is need to handle.
 
-  auto rcl_context = rclcpp::contexts::get_global_default_context()->get_rcl_context();
-  if (rcl_context) {
-      rcl_arguments_t rcl_args = rcl_get_zero_initialized_arguments();
-
-      // Initialize arguments with empty contents
-      rcl_parse_arguments(0,NULL, rcl_get_default_allocator(), &rcl_args);
-
-      // Free up space from previous call
-      rcl_arguments_fini(&rcl_context->global_arguments);
-
-      rcl_context->global_arguments = rcl_args;
-  }
-
   // Initialize ROS node
   impl_->ros_node_ = gazebo_ros::Node::Get(_sdf);
 
@@ -122,12 +126,19 @@ void GazeboRosVacuumGripper::Load(gazebo::physics::ModelPtr _model, sdf::Element
   const gazebo_ros::QoS & qos = impl_->ros_node_->get_qos();
 
   if (_sdf->HasElement("link_name")) {
-    auto link = _sdf->Get<std::string>("link_name");
-    impl_->link_ = _model->GetLink(link);
-    if (!impl_->link_) {
-      RCLCPP_ERROR(impl_->ros_node_->get_logger(), "Link [%s] not found. Aborting", link.c_str());
-      impl_->ros_node_.reset();
-      return;
+    for (auto link = _sdf->GetElement("link_name"); link != nullptr;
+      link = link->GetNextElement("link_name"))
+    {
+      auto name = link->Get<std::string>();
+      auto vacuum_link = _model->GetLink(name);
+      if (!vacuum_link) {
+        RCLCPP_ERROR(impl_->ros_node_->get_logger(), "Link [%s] not found. Aborting", name.c_str());
+        impl_->ros_node_.reset();
+        return;
+      }
+      impl_->links_.push_back(vacuum_link);
+      // Insert vacuum gripper link to fixed list
+      impl_->fixed_.insert(name.c_str());
     }
   } else {
     RCLCPP_ERROR(impl_->ros_node_->get_logger(), "Please specify <link_name>. Aborting.");
@@ -147,7 +158,6 @@ void GazeboRosVacuumGripper::Load(gazebo::physics::ModelPtr _model, sdf::Element
     }
   }
   impl_->fixed_.insert(_model->GetName());
-  impl_->fixed_.insert(impl_->link_->GetName());
 
   // Initialize publisher
   impl_->pub_ = impl_->ros_node_->create_publisher<std_msgs::msg::Bool>(
@@ -168,23 +178,32 @@ void GazeboRosVacuumGripper::Load(gazebo::physics::ModelPtr _model, sdf::Element
     impl_->ros_node_->get_logger(),
     "Advertise gripper switch service on [%s]", impl_->service_->get_service_name());
 
+  // Publish rate parameter
+  auto rate_param = impl_->ros_node_->declare_parameter(
+    "publish_rate",
+    rclcpp::ParameterValue(GazeboRosVacuumGripperPrivate::DEFAULT_PUBLISH_FREQUENCY));
+  impl_->throttler_ = gazebo_ros::Throttler(rate_param.get<double>());
+
   // Listen to the update event (broadcast every simulation iteration)
   impl_->update_connection_ = gazebo::event::Events::ConnectWorldUpdateBegin(
-    std::bind(&GazeboRosVacuumGripperPrivate::OnUpdate, impl_.get()));
+    std::bind(&GazeboRosVacuumGripperPrivate::OnUpdate, impl_.get(), std::placeholders::_1));
 }
 
-void GazeboRosVacuumGripperPrivate::OnUpdate()
+void GazeboRosVacuumGripperPrivate::OnUpdate(const gazebo::common::UpdateInfo & _info)
 {
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE("GazeboRosVacuumGripper::OnUpdate");
 #endif
   std_msgs::msg::Bool grasping_msg;
   if (!status_) {
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
     IGN_PROFILE_BEGIN("publish");
 #endif
+    if (!throttler_.IsReady(_info.realTime))
+      return;
+
     pub_->publish(grasping_msg);
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
     IGN_PROFILE_END();
 #endif
     return;
@@ -192,7 +211,6 @@ void GazeboRosVacuumGripperPrivate::OnUpdate()
 
   std::lock_guard<std::mutex> lock(lock_);
 
-  ignition::math::Pose3d parent_pose = link_->WorldPose();
   gazebo::physics::Model_V models = world_->Models();
 
   for (auto & model : models) {
@@ -201,20 +219,25 @@ void GazeboRosVacuumGripperPrivate::OnUpdate()
     }
     gazebo::physics::Link_V links = model->GetLinks();
     for (auto & link : links) {
-      ignition::math::Pose3d link_pose = link->WorldPose();
-      ignition::math::Pose3d diff = parent_pose - link_pose;
-      if (diff.Pos().Length() > max_distance_) {
-        continue;
-      }
-      link->AddForce(link_pose.Rot().RotateVector((parent_pose - link_pose).Pos()).Normalize());
-      grasping_msg.data = true;
+      for (auto &vacuum_link : links_) {
+        ignition::math::Pose3d parent_pose = vacuum_link->WorldPose();
+        ignition::math::Pose3d link_pose = link->WorldPose();
+        ignition::math::Pose3d diff = parent_pose - link_pose;
+        if (diff.Pos().Length() > max_distance_) {
+          continue;
+        }
+        link->AddForce(link_pose.Rot().RotateVector((parent_pose - link_pose).Pos()).Normalize());
+        grasping_msg.data = true;
     }
+   }
   }
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE_BEGIN("publish grasping_msg");
 #endif
+  if (!throttler_.IsReady(_info.realTime))
+      return;
   pub_->publish(grasping_msg);
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE_END();
 #endif
 }

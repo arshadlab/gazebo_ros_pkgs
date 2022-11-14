@@ -38,7 +38,7 @@
 #include <gazebo_plugins/gazebo_ros_joint_state_publisher.hpp>
 #include <gazebo_ros/conversions/builtin_interfaces.hpp>
 #include <gazebo_ros/node.hpp>
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
 #include <ignition/common/Profiler.hh>
 #endif
 #include <rclcpp/rclcpp.hpp>
@@ -151,7 +151,7 @@ void GazeboRosJointStatePublisher::Load(gazebo::physics::ModelPtr model, sdf::El
 
 void GazeboRosJointStatePublisherPrivate::OnUpdate(const gazebo::common::UpdateInfo & info)
 {
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE("GazeboRosJointStatePublisherPrivate::OnUpdate");
 #endif
   gazebo::common::Time current_time = info.simTime;
@@ -169,7 +169,7 @@ void GazeboRosJointStatePublisherPrivate::OnUpdate(const gazebo::common::UpdateI
     return;
   }
 
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE_BEGIN("fill ROS message");
 #endif
   // Populate message
@@ -188,13 +188,13 @@ void GazeboRosJointStatePublisherPrivate::OnUpdate(const gazebo::common::UpdateI
     joint_state.position[i] = position;
     joint_state.velocity[i] = velocity;
   }
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE_END();
   IGN_PROFILE_BEGIN("publish");
 #endif
   // Publish
   joint_state_pub_->publish(joint_state);
-#ifdef IGN_PROFILER_ENABLE
+#if IGN_PROFILER_ENABLE
   IGN_PROFILE_END();
 #endif
   // Update time

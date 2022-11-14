@@ -159,6 +159,33 @@ if(ENABLE_PROFILER)
   target_link_libraries(gazebo_ros_camera ${ignition-common3_LIBRARIES})
 endif()
 
+# gazebo_ros_camera
+add_library(gazebo_ros_camera_jpg SHARED
+  src/gazebo_ros_camera_jpg.cpp
+)
+target_include_directories(gazebo_ros_camera_jpg PUBLIC include)
+ament_target_dependencies(gazebo_ros_camera_jpg
+  "camera_info_manager"
+  "gazebo_dev"
+  "gazebo_ros"
+  "image_transport"
+  "rclcpp"
+  "sensor_msgs"
+  "OpenCV"
+  "cv_bridge"
+  "std_msgs"
+)
+target_link_libraries(gazebo_ros_camera_jpg
+  CameraPlugin
+  DepthCameraPlugin
+  multi_camera_plugin
+)
+ament_export_libraries(gazebo_ros_camera_jpg)
+if(ENABLE_PROFILER)
+  target_include_directories(gazebo_ros_camera_jpg PUBLIC ${ignition-common3_INCLUDE_DIRS})
+  target_link_libraries(gazebo_ros_camera_jpg ${ignition-common3_LIBRARIES})
+endif()
+
 # gazebo_ros_imu_sensor
 add_library(gazebo_ros_imu_sensor SHARED
   src/gazebo_ros_imu_sensor.cpp
@@ -501,6 +528,7 @@ install(TARGETS
     gazebo_ros_ackermann_drive
     gazebo_ros_bumper
     gazebo_ros_camera
+    gazebo_ros_camera_jpg
     gazebo_ros_diff_drive
     gazebo_ros_elevator
     gazebo_ros_force

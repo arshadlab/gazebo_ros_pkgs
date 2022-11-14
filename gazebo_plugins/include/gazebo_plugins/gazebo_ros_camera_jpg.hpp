@@ -12,26 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef GAZEBO_PLUGINS__GAZEBO_ROS_CAMERA_HPP_
-#define GAZEBO_PLUGINS__GAZEBO_ROS_CAMERA_HPP_
+#ifndef GAZEBO_PLUGINS__GAZEBO_ROS_CAMERA_JPG_HPP_
+#define GAZEBO_PLUGINS__GAZEBO_ROS_CAMERA_JPG_HPP_
 
 #include <gazebo/plugins/CameraPlugin.hh>
 #include <gazebo/plugins/DepthCameraPlugin.hh>
 #include <gazebo_plugins/multi_camera_plugin.hpp>
 #include <std_msgs/msg/empty.hpp>
 
-#include "gazebo/common/Plugin.hh"
-#include "gazebo/sensors/DepthCameraSensor.hh"
-#include "gazebo/sensors/CameraSensor.hh"
-#include "gazebo/rendering/DepthCamera.hh"
-#include "gazebo/util/system.hh"
-
 #include <memory>
 #include <string>
 
 namespace gazebo_plugins
 {
-class GazeboRosCameraPrivate;
+class GazeboRosCameraJPGPrivate;
 
 /// A plugin that publishes raw images and camera info for generic camera sensors.
 /// It can also be configured to publish raw depth images, point cloud
@@ -66,15 +60,15 @@ class GazeboRosCameraPrivate;
     </plugin>
   \endcode
 */
-class GazeboRosCamera
+class GazeboRosCameraJPG
   : public gazebo::CameraPlugin, gazebo::DepthCameraPlugin, MultiCameraPlugin
 {
 public:
   /// Constructor
-  GazeboRosCamera();
+  GazeboRosCameraJPG();
 
   /// Destructor
-  ~GazeboRosCamera();
+  ~GazeboRosCameraJPG();
 
 protected:
   // Documentation inherited
@@ -170,11 +164,11 @@ protected:
 
 private:
   /// Private data pointer
-  std::unique_ptr<GazeboRosCameraPrivate> impl_;
+  std::unique_ptr<GazeboRosCameraJPGPrivate> impl_;
 
   // A handler for the param change callback.
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_change_callback_handler_;
 };
 }  // namespace gazebo_plugins
 
-#endif  // GAZEBO_PLUGINS__GAZEBO_ROS_CAMERA_HPP_
+#endif  // GAZEBO_PLUGINS__GAZEBO_ROS_CAMERA_JPG_HPP_
